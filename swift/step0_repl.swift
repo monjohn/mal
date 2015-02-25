@@ -9,7 +9,7 @@ func prompt() -> String {
 }
 
 func READ (s: String) -> String {
-    return s;
+     return s;
 }
 
 func EVAL (ast: String) -> String {
