@@ -1,8 +1,6 @@
 import Foundation
 
-
 class MalType {
-
 }
 
 class MalBool: MalType {
@@ -53,14 +51,13 @@ class MalStr: MalType {
 
 
 
-
 func printList(list: MalList) -> String {
     let items = list.items;
-    var result: String = "(";
+    var result:[String] = []
     for i in items {
-        result = result + " " + printString(i);
+        result.append(printString(i))
     }
-    return result + ")";
+    return "(" + (" ".join(result)) + ")"
 }
 
 func printString (t:MalType) -> String {
@@ -149,16 +146,7 @@ func readAtom(reader: Reader) -> MalType {
     }
 }
 
-//func read_list(reader: Reader, start: String = "(", end: String = ")") -> MalType {
-//    var ast = MalList();
-//    reader.next();
-//    while reader.peek() != end {
-//        ast.push(read_atom(reader));
-//    reader.next();
-//    }
-//    reader.next();
-//    return ast;
-//}
+
 
 func readForm(reader: Reader) -> MalType {
     func readList(reader: Reader, start: String = "(", end: String = ")")
@@ -204,14 +192,18 @@ func EVAL (m: MalType) -> MalType {
 }
 
 
-func rep () {
+func rep() {
     println("user> ");
     while true {
-        print("=>" +  printString(EVAL(readString(prompt()))))
+        var s = printString(EVAL(readString(prompt())))
+        //  s = s.stringByTrimmingCharactersInSet(NSCharacterSet.whitespaceAndNewlineCharacterSet())
+        println( "=>" + s)
     }
 }
 
+
 rep()
+
 
 
 
