@@ -1,5 +1,38 @@
 import Foundation
 
+class Env: MalType {
+    var outer:  Env?
+    var data = [String:MalType]()
+
+
+    func outer(outerEnv: Env) -> (Env) {
+        outer = outerEnv
+        return self
+    }
+
+    func set(k:String, v: MalType) -> MalSymbol {
+        data[k] = v
+        return MalSymbol(value: k)
+    }
+    func find(k:String) -> [String:MalType]? {
+        if let result = data[k] {
+            return .Some(data)
+        } else if let result = outer?.find(k) {
+            return outer?.find(k)
+        } else {
+            return .None
+        }
+    }
+    func get(k:String) -> MalType? {
+        if let result = find(k) {
+            return result[k]
+        } else {
+            return .None // MalError(value: k + " not found")
+        }
+    }
+}
+
+
 class MalType {
 }
 
@@ -133,9 +166,6 @@ class MalVec: MalType {
     }
 }
 
-func raiseE(s: String) -> () {
-    NSException(name:"Error", reason:s, userInfo:nil).raise()
-}
 
 func printHelper(coll:[MalType]) -> [String] {
     var result:[String] = []
@@ -166,8 +196,7 @@ func printDict(dict: MalDict) -> String {
     return "{" + (" ".join(result)) + "}"
 }
 
-func printString (t:MalType) -> String {
-
+func printString (t:MalType, printReadably: Bool = true) -> String {
     switch t {
     case is MalInt:
         return toString((t as MalInt ).value)
@@ -196,6 +225,34 @@ func printString (t:MalType) -> String {
     }
 }
 
+func checkForError(t: MalType) -> MalType {
+    var accumlator: MalType
+    switch t {
+    case is MalError:
+        return t
+    case is MalList:
+        accumlator = MalList(items: [])
+        let items = (t as MalList).items
+        for i in items {
+            (accumlator as MalList).push(checkForError(i))
+        }
+        return accumlator
+    case is MalVec:
+        accumlator = MalVec(items: [])
+        let items = (t as MalList).items
+        for i in items {
+            (accumlator as MalVec).push(checkForError(i))
+        }
+        return accumlator
+    default: return t
+    }
+}
+
+
+func errorCheckandPrint(t:MalType) -> String {
+    let x = checkForError(t)
+    return printString(x)
+}
 
 class Reader {
     var tokens: [String];
@@ -215,7 +272,7 @@ class Reader {
         if position == tokens.count {
             return nil
         } else {
-        return tokens[position]
+            return tokens[position]
         }
     }
 }
@@ -229,14 +286,17 @@ func regex(p:String, s:String) -> [String] {
     return matches.map {
         let range = $0.range
         let s1 = (s as NSString).substringWithRange(range)
-        return s1.stringByTrimmingCharactersInSet(NSCharacterSet.whitespaceCharacterSet())
+        let set = NSCharacterSet(charactersInString: ", ")
+        return s1.stringByTrimmingCharactersInSet(set)
     }
 }
 
 func tokenize(s: String) -> [String] {
-    let pattern = "[\\s ,]*(~@|[\\[\\]{}()'`~@]|\"(?:[\\\\].|[^\\\\\"])*\"|;.*|[^\\s \\[\\]{}()'\"`~@,;]*)"
-    return regex(pattern, s)
+    let pattern = "[\\s ,]*(~@|[\\[\\]\\{\\}\\(\\)'`~^@]|\"(?:\\\\.|[^\\\\\"])*\"|;.*|[^\\s\\[\\]\\{\\}\\('\"`,;\\)]*)"
+       return regex(pattern, s)
 }
+
+//tokenize("[1, 2, 3]")
 
 func containsMatch(pattern: String, inString string: String) -> Bool {
     let regex = NSRegularExpression(pattern: pattern, options: .allZeros, error: nil)
@@ -256,11 +316,13 @@ func readAtom(reader: Reader) -> MalType {
         } else if s == "nil" {
             return MalNil()
         } else if s.hasPrefix(":") {
+            return MalKeyword(value: s)
+        } else if s.hasPrefix("\"") {
+            s.stringByReplacingOccurrencesOfString("\\\"", withString: "\"")
+            s.stringByReplacingOccurrencesOfString("\\\n", withString: "\n")
             return MalStr(value: s)
-        } else if !s.hasPrefix("\"") {
-            return MalSymbol(value: s)
         } else {
-            return MalStr(value: s)
+            return MalSymbol(value: s)
         }
     } else {
         return MalError(value: "No type found")
@@ -272,26 +334,27 @@ func readList(reader: Reader, start: String = "(", end: String = ")") -> MalType
     var ast = MalList(items:[]);
     reader.next();
     while reader.peek() != end {
-        reader.peek()
-        ast.push(readForm(reader));
+        if let p = reader.peek() {
+            ast.push(readForm(reader));
+        } else {
+            return MalError(value: "expected '\(end)', got EOF")
+        }
     }
     reader.next()
     return ast;
 }
 
-func even(x:Int) -> Bool {
-   return x % 2 == 0
-}
-
-func readDict(reader:Reader) -> MalType {
-    let list = readList(reader, start: "{", end: "}") as MalList
+func listToDict(list:MalList) -> MalType {
+    func even(x:Int) -> Bool {
+        return x % 2 == 0
+    }
     let items = list.items
     if items.count % 2 == 0 {
-
-    var keys = [String]()
-    var values = [MalType]()
-    var dict = [String: MalType]()
-    var ind:Int = 0
+        var keys = [String]()
+        var values = [MalType]()
+        var dict = [String: MalType]()
+        var ind:Int = 0
+        println(items)
         for item in items {
             if even(ind) {
                 keys.append((item as MalStr).value)
@@ -303,17 +366,25 @@ func readDict(reader:Reader) -> MalType {
         for i in 0..<(keys.count) {
             dict[keys[i]] = values[i]
         }
-    return MalDict(items: dict)
-} else {
-    raiseE("Odd number of elements.")
+        return MalDict(items: dict)
+    } else {
         return MalError(value: "Odd number of elements.")
+    }
 }
+
+func readDict(reader:Reader) -> MalType {
+    let list = readList(reader, start: "{", end: "}") as MalList
+    return listToDict(list)
 }
 
 
 func readVec(reader: Reader) -> MalType {
-    var list = readList(reader, start: "[", end: "]") as MalList
-    return MalVec(items: list.items)
+    var list = readList(reader, start: "[", end: "]")
+    if list is MalList {
+    return MalVec(items: (list as MalList).items)
+    } else {
+        return list
+    }
 }
 
 func readForm(reader: Reader) -> MalType {
@@ -322,22 +393,23 @@ func readForm(reader: Reader) -> MalType {
         case "(":
             return readList(reader)
         case ")":
-            raiseE("Unexpected ')'")
+            reader.next()
             return MalError(value: "Unexpected ')'")
         case "[":
             return readVec(reader)
         case "]":
+            reader.next()
             return MalError(value: "Unexpected ']'")
         case "{":
             return readDict(reader)
         case "}":
+            reader.next()
             return MalError(value: "Unexpected '{'")
         default:
             return readAtom(reader)
         }
     } else {
-        raiseE("Expected closing paren")
-        return MalError(value: "Expected closing paren")
+        return MalError(value: "readForm not found")
     }
 }
 
@@ -357,20 +429,28 @@ func _apply(fun: MalFun, a1: MalType) -> MalType {
     return fun.a1(a1)
 }
 
-func apply(fun: MalFun, args: [MalType]) -> MalType {
-    switch args.count {
-    case 1:
-        return _apply(fun, args[0])
-    case 2:
-        return _apply(fun, args[0], args[1])
-//    case 3:
-//        return _apply(fun, args[0], args[1], args[2])
-    default: return MalError(value: "apply is broken")
+func apply(list: MalList) -> MalType {
+
+    let fun = list.first()
+    switch fun {
+    case is MalFun:
+        let args = list.rest()
+        switch args.count {
+        case 1:
+            return _apply((fun as MalFun), args[0])
+        case 2:
+            return _apply((fun as MalFun), args[0], args[1])
+            //    case 3:
+            //        return _apply(fun, args[0], args[1], args[2])
+        default: return MalError(value: "apply is broken")
+        }
+    default:
+        return MalError(value: "First item in list is not a function")
     }
 }
 
-func evalDict(d: MalDict, env:[String: MalFun]) -> MalType {
-let dict = d.items
+func evalDict(d: MalDict, env:Env) -> MalType {
+    let dict = d.items
     let keys = dict.keys
     var result = [String:MalType]()
     for key in keys {
@@ -379,20 +459,20 @@ let dict = d.items
     return MalDict(items: result)
 }
 
-func evalAst(ast: MalType, env:[String: MalFun]) -> MalType {
+func evalAst(ast: MalType, env:Env) -> MalType {
     switch ast {
     case is MalInt:
+        ast
         return ast
     case is MalSymbol:
-        if let sym = env[(ast as MalSymbol).value] {
-            return (sym as MalFun)
+        if let fun = env.get((ast as MalSymbol).value) {
+            return (fun as MalType)
         } else {
             let msg = "'" + (ast as MalSymbol).value + "' not found."
-            raiseE(msg)
             return MalError(value: msg)
         }
     case is MalDict:
-            return evalDict(ast as MalDict, env)
+        return evalDict(ast as MalDict, env)
     case is MalVec:
         return MalVec(items: (ast as MalVec).items.map
             {eval($0,env)})
@@ -403,23 +483,39 @@ func evalAst(ast: MalType, env:[String: MalFun]) -> MalType {
     }
 }
 
-func eval(ast: MalType, env:[String: MalFun]) -> MalType {
+func createLetEnv(list: MalList, env:Env) -> Env {
+    let items  = list.items
+    let c = items.count
+    for( var x = 0; x < c; x = x + 2 ) {
+        let k = (items[x] as MalSymbol).value as String
+        env.set(k,v: (eval(items[(x + 1)], env)))
+    }
+    return env
+}
+
+func eval(ast: MalType, env: Env) -> MalType {
     switch ast {
     case is MalList:
-        printString(ast)
-        let result = evalAst(ast, env) as MalList
-        result.second()
-        let fun = result.first() as MalFun
-        let args = result.rest()
-        return apply(fun, args)
+        let items = (ast as MalList).items
+        // check for special forms
+        if items[0] is MalSymbol && (items[0] as MalSymbol).value == "def!" {
+            return env.set((items[1] as MalSymbol).value,
+                v: eval(items[2], env ));
+        } else if items[0] is MalSymbol && (items[0] as MalSymbol).value == "let*" {
+            var newEnv = Env().outer(env)
+            let bindings = items[1] as MalList
+            newEnv = createLetEnv(bindings, newEnv)
+            return eval(items[2], newEnv)
+        }
+        // otherwise apply first argument as function
+        return apply(evalAst(ast, env) as MalList)
+
     default:
         return evalAst(ast,  env)
     }
 }
 
-
-
-let replEnv = [
+let envFuns = [
     "+": MalFun(a2: { (a:MalType, b:MalType) -> MalType in
         return MalInt(value:((a as MalInt).value + (b as MalInt).value))}),
     "-": MalFun(a2:{ (a:MalType, b:MalType) -> MalType in
@@ -428,7 +524,17 @@ let replEnv = [
         return MalInt(value:((a as MalInt).value * (b as MalInt).value))}),
     "/": MalFun(a2: { (a:MalType, b:MalType) -> MalType in
         return MalInt(value:((a as MalInt).value / (b as MalInt).value))})
-   ]
+]
+
+func populateEnv() -> Env {
+    var env = Env()
+    for (k, v) in envFuns {
+        env.set(k, v: v)
+    }
+    return env
+}
+
+var replEnv = populateEnv()
 
 func prompt() -> String {
     var keyboard = NSFileHandle.fileHandleWithStandardInput()
