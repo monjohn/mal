@@ -2,7 +2,7 @@ import Foundation
 
 
 func prompt() -> String {
-    print("-> ");
+    println("user> ");
     var keyboard = NSFileHandle.fileHandleWithStandardInput()
     var inputData = keyboard.availableData
     return NSString(data: inputData, encoding:NSUTF8StringEncoding)!
@@ -21,7 +21,6 @@ func PRINT (s: String) -> String {
 }
 
 func rep () {
- println("MAL repl ");
     while true {
     print(PRINT(EVAL(READ(prompt()))));
     }

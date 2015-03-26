@@ -1,7 +1,6 @@
 import Foundation
 
-class MalType {
-}
+class MalType {}
 
 class MalBool: MalType {
     let value: String;
@@ -90,10 +89,13 @@ class Reader {
         self.tokens = tokens
     }
 
-    func next() -> String? {
-        let p = peek();
-        position = position + 1
-        return p
+   func next() -> String? {
+        if let p = peek() {
+            position = position + 1
+            return p
+        } else {
+            return nil
+        }
     }
 
     func peek() -> String? {
@@ -110,9 +112,12 @@ func regex(p:String, s:String) -> [String] {
     let regex = NSRegularExpression(pattern: p, options: .allZeros, error: nil)
     let range = NSMakeRange(0, countElements(s))
     let matches = regex?.matchesInString(s, options: .allZeros, range: range) as [NSTextCheckingResult]
+
     return matches.map {
         let range = $0.range
-        return (s as NSString).substringWithRange(range)
+        let s1 = (s as NSString).substringWithRange(range)
+        let set = NSCharacterSet(charactersInString: ", \n")
+        return s1.stringByTrimmingCharactersInSet(set)
     }
 }
 
@@ -187,7 +192,7 @@ func prompt() -> String {
 }
 
 
-func EVAL (m: MalType) -> MalType {
+func eval (m: MalType) -> MalType {
     return m;
 }
 
@@ -195,8 +200,7 @@ func EVAL (m: MalType) -> MalType {
 func rep() {
     println("user> ");
     while true {
-        var s = printString(EVAL(readString(prompt())))
-        //  s = s.stringByTrimmingCharactersInSet(NSCharacterSet.whitespaceAndNewlineCharacterSet())
+        var s = printString(eval(readString(prompt()), replEnv))
         println( "=>" + s)
     }
 }

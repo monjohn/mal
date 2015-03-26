@@ -121,9 +121,6 @@ class MalList: MalType {
     func second() -> MalType {
         return items[1]
     }
-    func third() -> MalType {
-        return items[2]
-    }
     func rest() -> MalList {
         var copy = items
         copy.removeAtIndex(0)
@@ -171,9 +168,6 @@ class MalVec: MalType {
     }
     func second() -> MalType {
         return items[1]
-    }
-    func third() -> MalType {
-        return items[2]
     }
     func rest() -> [MalType] {
         var copy = items
@@ -744,9 +738,6 @@ func rep() {
 }
 
 
-printString(
-    eval(readString("((fn* (& more) (count more)) 1 2 3)" ),
-        replEnv))
 
 func rep(s: String) {
     printString(eval(readString(s), replEnv))

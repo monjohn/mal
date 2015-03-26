@@ -1,7 +1,6 @@
 import Foundation
 
-class MalType {
-}
+class MalType {}
 
 class MalBool: MalType {
     let value: String;
@@ -83,9 +82,6 @@ class MalList: MalType {
     func second() -> MalType {
         return items[1]
     }
-    func third() -> MalType {
-        return items[2]
-    }
     func rest() -> [MalType] {
         var copy = items
         copy.removeAtIndex(0)
@@ -133,9 +129,6 @@ class MalVec: MalType {
     }
 }
 
-func raiseE(s: String) -> () {
-    NSException(name:"Error", reason:s, userInfo:nil).raise()
-}
 
 func printHelper(coll:[MalType]) -> [String] {
     var result:[String] = []
@@ -206,9 +199,12 @@ class Reader {
     }
 
     func next() -> String? {
-        let p = peek();
-        position = position + 1
-        return p
+        if let p = peek() {
+            position = position + 1
+            return p
+        } else {
+            return nil
+        }
     }
 
     func peek() -> String? {
@@ -305,7 +301,6 @@ func readDict(reader:Reader) -> MalType {
         }
     return MalDict(items: dict)
 } else {
-    raiseE("Odd number of elements.")
         return MalError(value: "Odd number of elements.")
 }
 }
@@ -322,7 +317,6 @@ func readForm(reader: Reader) -> MalType {
         case "(":
             return readList(reader)
         case ")":
-            raiseE("Unexpected ')'")
             return MalError(value: "Unexpected ')'")
         case "[":
             return readVec(reader)
@@ -336,7 +330,6 @@ func readForm(reader: Reader) -> MalType {
             return readAtom(reader)
         }
     } else {
-        raiseE("Expected closing paren")
         return MalError(value: "Expected closing paren")
     }
 }
@@ -388,7 +381,6 @@ func evalAst(ast: MalType, env:[String: MalFun]) -> MalType {
             return (sym as MalFun)
         } else {
             let msg = "'" + (ast as MalSymbol).value + "' not found."
-            raiseE(msg)
             return MalError(value: msg)
         }
     case is MalDict:
@@ -443,8 +435,6 @@ func rep() {
         println( "=>" + s)
     }
 }
-
-
 
 rep()
 
